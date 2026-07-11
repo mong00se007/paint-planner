@@ -1,0 +1,10 @@
+{
+  "name": "artchitect-paint-suite",
+  "version": "1.0.0",
+  "description": "Premium architect painting measurement and 3D visualizer tool.",
+  "main": "index.html",
+  "scripts": {
+    "dev": "npx -y http-server . -p 3000"
+  },
+  "dependencies": {}
+}

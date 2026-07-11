@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paint Measurement Architect Tool</title>
+    <!-- Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/png" href="favicon.png">
+    
+    <!-- Three.js and OrbitControls for 3D View -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <!-- Leaflet.js Map Library -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo">
+                <span class="material-icons logo-icon">architecture</span>
+                <h1>Artchitect <span class="subtitle">Paint Estimate Suite</span></h1>
+            </div>
+            
+            <!-- Global Configs -->
+            <div class="global-configs">
+                <div class="config-group">
+                    <label for="cfg-wall-height">Wall Height</label>
+                    <div class="input-wrapper">
+                        <input type="number" id="cfg-wall-height" value="2.4" step="0.1" min="1.0" max="6.0">
+                        <span class="unit">m</span>
+                    </div>
+                </div>
+                <div class="config-group">
+                    <label for="cfg-ext-height">Exterior Height</label>
+                    <div class="input-wrapper">
+                        <input type="number" id="cfg-ext-height" value="2.8" step="0.1" min="1.0" max="10.0">
+                        <span class="unit">m</span>
+                    </div>
+                </div>
+                <div class="config-group">
+                    <label for="cfg-coverage">Paint Coverage</label>
+                    <div class="input-wrapper">
+                        <input type="number" id="cfg-coverage" value="10" step="0.5" min="1" max="25">
+                        <span class="unit">m²/L</span>
+                    </div>
+                </div>
+                <div class="config-group">
+                    <label for="cfg-wall-coats">Wall Coats</label>
+                    <input type="number" id="cfg-wall-coats" value="2" min="1" max="5" class="small-num">
+                </div>
+                <div class="config-group">
+                    <label for="cfg-ceil-coats">Ceiling Coats</label>
+                    <input type="number" id="cfg-ceil-coats" value="2" min="1" max="5" class="small-num">
+                </div>
+                <div class="config-group">
+                    <label for="cfg-method">Method</label>
+                    <select id="cfg-method">
+                        <option value="roller" selected>Roller/Brush (+10% waste)</option>
+                        <option value="spray">Spray (+20% waste)</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- View Toggle -->
+            <div class="view-toggle-container">
+                <button id="btn-view-2d" class="toggle-btn active">2D Plan</button>
+                <button id="btn-view-3d" class="toggle-btn">3D View</button>
+                <button id="btn-view-map" class="toggle-btn">Map View</button>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <!-- Sidebar: Tools & Library -->
+            <aside class="sidebar tools-sidebar">
+                <div class="sidebar-section">
+                    <h3>Tools</h3>
+                    <div class="btn-grid">
+                        <button id="tool-select" class="tool-btn active" title="Select & Move elements">
+                            <span class="material-icons">near_me</span>
+                            <span>Select</span>
+                        </button>
+                        <button id="tool-wall" class="tool-btn" title="Draw walls point-to-point">
+                            <span class="material-icons">edit</span>
+                            <span>Draw Wall</span>
+                        </button>
+                        <button id="tool-door" class="tool-btn" title="Place a door on a wall">
+                            <span class="material-icons">door_front</span>
+                            <span>Add Door</span>
+                        </button>
+                        <button id="tool-window" class="tool-btn" title="Place a window on a wall">
+                            <span class="material-icons">grid_on</span>
+                            <span>Add Window</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>Wall Settings</h3>
+                    <div class="form-group">
+                        <label for="wall-preset">Type Preset</label>
+                        <select id="wall-preset">
+                            <option value="exterior-brick">Brick Veneer (Ext: 250mm)</option>
+                            <option value="exterior-weatherboard">Weatherboard (Ext: 112mm)</option>
+                            <option value="exterior-std" selected>Std Outside Wall (150mm)</option>
+                            <option value="interior-std">Std Inside Wall (120mm)</option>
+                            <option value="custom">Custom Thickness...</option>
+                        </select>
+                    </div>
+                    <div id="custom-thickness-group" class="form-group hidden">
+                        <label for="wall-custom-thickness">Thickness</label>
+                        <div class="input-wrapper">
+                            <input type="number" id="wall-custom-thickness" value="120" step="5" min="10" max="1000">
+                            <span class="unit">mm</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>Print & Layout</h3>
+                    <div class="form-group">
+                        <label for="page-size">Sheet Guide</label>
+                        <select id="page-size">
+                            <option value="none" selected>No Guide</option>
+                            <option value="a4-portrait">A4 Portrait (1:50)</option>
+                            <option value="a4-landscape">A4 Landscape (1:50)</option>
+                            <option value="a3-portrait">A3 Portrait (1:50)</option>
+                            <option value="a3-landscape">A3 Landscape (1:50)</option>
+                            <option value="a4-portrait-100">A4 Portrait (1:100)</option>
+                            <option value="a4-landscape-100">A4 Landscape (1:100)</option>
+                            <option value="a3-portrait-100">A3 Portrait (1:100)</option>
+                            <option value="a3-landscape-100">A3 Landscape (1:100)</option>
+                        </select>
+                    </div>
+                    <div class="btn-group">
+                        <button id="btn-print" class="action-btn text-btn">
+                            <span class="material-icons">print</span> Print Page
+                        </button>
+                        <button id="btn-clear" class="action-btn danger text-btn">
+                            <span class="material-icons">delete</span> Clear All
+                        </button>
+                    </div>
+                </div>
+
+                <div id="sidebar-location-section" class="sidebar-section hidden">
+                    <h3>Project Location</h3>
+                    <div class="form-group" style="display: flex; gap: 10px; margin-bottom: 0;">
+                        <div style="flex: 1;">
+                            <label for="cfg-gps-lat" style="font-size: 11px;">Latitude</label>
+                            <input type="number" id="cfg-gps-lat" value="-37.8136" step="0.0001" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-color); color: var(--text-primary); padding: 6px; border-radius: 6px; font-family: var(--font-sans); outline: none; font-size: 12px;">
+                        </div>
+                        <div style="flex: 1;">
+                            <label for="cfg-gps-lon" style="font-size: 11px;">Longitude</label>
+                            <input type="number" id="cfg-gps-lon" value="144.9631" step="0.0001" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-color); color: var(--text-primary); padding: 6px; border-radius: 6px; font-family: var(--font-sans); outline: none; font-size: 12px;">
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-top: 10px;">
+                        <label for="cfg-map-style" style="font-size: 11px;">Map Style</label>
+                        <select id="cfg-map-style" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-color); color: var(--text-primary); padding: 6px; border-radius: 6px; font-family: var(--font-sans); outline: none; font-size: 12px; cursor: pointer;">
+                            <option value="street" selected>Street Map</option>
+                            <option value="satellite">Satellite Imagery</option>
+                        </select>
+                    </div>
+                    <button id="btn-get-gps" class="action-btn text-btn secondary" style="width: 100%; margin-top: 10px; padding: 6px 12px; font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                        <span class="material-icons" style="font-size: 14px;">my_location</span> Use My Location
+                    </button>
+                </div>
+
+                <div class="sidebar-section files-section">
+                    <h3>Project Files</h3>
+                    <div class="btn-group">
+                        <button id="btn-save" class="action-btn text-btn secondary">
+                            <span class="material-icons">save</span> Save Plan
+                        </button>
+                        <button id="btn-export-kml" class="action-btn text-btn secondary" title="Export as KML coordinates">
+                            <span class="material-icons">map</span> Export KML
+                        </button>
+                        <label for="file-upload" class="action-btn text-btn secondary label-btn">
+                            <span class="material-icons">folder_open</span> Load Plan
+                        </label>
+                        <input type="file" id="file-upload" accept=".json,.kml" style="display: none;">
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Workspace Canvas -->
+            <main class="canvas-workspace">
+                <div id="canvas-2d-container" class="canvas-container">
+                    <canvas id="canvas-2d"></canvas>
+                    
+                    <!-- Canvas Overlay Controls (Zoom Info, Pan, Help) -->
+                    <div class="canvas-controls">
+                        <button id="btn-zoom-in" class="canvas-ctrl-btn" title="Zoom In"><span class="material-icons">add</span></button>
+                        <button id="btn-zoom-out" class="canvas-ctrl-btn" title="Zoom Out"><span class="material-icons">remove</span></button>
+                        <button id="btn-zoom-fit" class="canvas-ctrl-btn" title="Fit to screen"><span class="material-icons">aspect_ratio</span></button>
+                        <span id="zoom-level">Scale: 1:50</span>
+                    </div>
+
+                    <!-- Keyboard Help Indicator -->
+                    <div class="keyboard-help">
+                        <span class="help-item"><kbd>Shift</kbd> Snap 45°</span>
+                        <span class="help-item"><kbd>Del</kbd> Remove Selected</span>
+                        <span class="help-item"><kbd>Esc</kbd> Cancel Draw</span>
+                    </div>
+                </div>
+
+                <!-- 3D Viewer Container (Toggled via header buttons) -->
+                <div id="canvas-3d-container" class="canvas-container hidden">
+                    <div id="canvas-3d"></div>
+                    <div class="canvas-controls">
+                        <button id="btn-3d-map-toggle" class="action-btn text-btn secondary" style="padding: 4px 8px; font-size: 11px; height: 26px; display: flex; align-items: center; gap: 4px;">
+                            <span class="material-icons" style="font-size: 14px;">map</span> Map Ground: OFF
+                        </button>
+                        <button id="btn-3d-orbit" class="action-btn text-btn secondary" style="padding: 4px 8px; font-size: 11px; height: 26px; display: flex; align-items: center; gap: 4px;">
+                            <span class="material-icons" style="font-size: 14px;">autorenew</span> Auto Orbit: OFF
+                        </button>
+                        <span class="view-3d-hint">Drag to rotate • Right-click to pan • Scroll to zoom</span>
+                    </div>
+                </div>
+
+                <!-- Map Viewer Container -->
+                <div id="canvas-map-container" class="canvas-container hidden" style="position: relative; width: 100%; height: 100%;">
+                    <div id="map-leaflet" style="width: 100%; height: 100%; background: #0f172a; min-height: 500px;"></div>
+                    <!-- Overlay controls for Rotation/Heading -->
+                    <div class="map-overlay-controls" style="position: absolute; top: 15px; right: 15px; z-index: 1000; background: rgba(15, 23, 42, 0.9); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 8px; color: var(--text-primary); font-family: var(--font-sans); width: 220px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+                        <h4 style="margin: 0; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent);">Map Alignment</h4>
+                        <div class="form-group" style="margin: 0;">
+                            <label style="font-size: 11px; display: block; margin-bottom: 4px; color: var(--text-muted);">Rotation (Heading)</label>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <input type="range" id="cfg-gps-rot" min="0" max="360" value="0" style="flex: 1; accent-color: var(--accent); cursor: pointer;">
+                                <span id="cfg-gps-rot-val" style="font-size: 12px; min-width: 32px; text-align: right; font-weight: 600;">0°</span>
+                            </div>
+                        </div>
+                        <div style="font-size: 10px; color: var(--text-secondary); line-height: 1.4;">
+                            Drag the blue marker to relocate the building. Move the slider to align it with site boundaries.
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Sidebar: Inspector & Measurements -->
+            <aside class="sidebar info-sidebar">
+                <!-- Inspector (Contextual details for selected Wall or Door/Window) -->
+                <div class="sidebar-section" id="inspector-panel">
+                    <h3>Inspector</h3>
+                    <div id="inspector-empty" class="inspector-hint">
+                        <span class="material-icons">info</span>
+                        <p>Select a wall, door, or window to edit dimensions.</p>
+                    </div>
+
+                    <!-- Wall Inspector -->
+                    <div id="inspector-wall" class="inspector-content hidden">
+                        <h4>Wall Segment</h4>
+                        <div class="form-group">
+                            <label>Length (Meters)</label>
+                            <div class="input-wrapper">
+                                <input type="number" id="insp-wall-length" step="0.05" min="0.1">
+                                <span class="unit">m</span>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group lock-group">
+                            <label>Lock Point for Resizing</label>
+                            <div class="lock-buttons">
+                                <button id="btn-lock-start" class="lock-btn active" title="Lock Start Point A (Green Dot)">
+                                    <span class="material-icons" style="color: #10b981;">lock</span> Lock A (Green)
+                                </button>
+                                <button id="btn-lock-end" class="lock-btn" title="Lock End Point B (Red Dot)">
+                                    <span class="material-icons" style="color: #f43f5e;">lock_open</span> Lock B (Red)
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="insp-wall-preset">Wall Type</label>
+                            <select id="insp-wall-preset" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-color); color: var(--text-primary); padding: 8px; border-radius: 6px; font-family: var(--font-sans); outline: none;">
+                                <option value="exterior-brick">Brick Veneer (Ext: 250mm)</option>
+                                <option value="exterior-weatherboard">Weatherboard (Ext: 112mm)</option>
+                                <option value="exterior-std">Std Outside Wall (150mm)</option>
+                                <option value="interior-std">Std Inside Wall (120mm)</option>
+                                <option value="custom">Custom Thickness...</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="insp-wall-thickness">Thickness (mm)</label>
+                            <div class="input-wrapper">
+                                <input type="number" id="insp-wall-thickness" step="5" min="10" max="1000">
+                                <span class="unit">mm</span>
+                            </div>
+                        </div>
+                        
+                        <div class="btn-group">
+                            <button id="btn-delete-wall" class="action-btn danger text-btn">
+                                <span class="material-icons">delete</span> Delete Wall
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Opening Inspector (Door / Window) -->
+                    <div id="inspector-opening" class="inspector-content hidden">
+                        <h4 id="insp-op-title">Door / Window</h4>
+                        <div class="form-group">
+                            <label for="insp-op-width">Width</label>
+                            <div class="input-wrapper">
+                                <input type="number" id="insp-op-width" step="0.05" min="0.2" max="5.0">
+                                <span class="unit">m</span>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="insp-op-height">Height</label>
+                            <div class="input-wrapper">
+                                <input type="number" id="insp-op-height" step="0.05" min="0.2" max="4.0">
+                                <span class="unit">m</span>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="insp-op-sill">Sill Height (from Floor)</label>
+                            <div class="input-wrapper">
+                                <input type="number" id="insp-op-sill" step="0.05" min="0.0" max="3.0">
+                                <span class="unit">m</span>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="insp-op-offset">Position along Wall</label>
+                            <div class="input-wrapper">
+                                <input type="number" id="insp-op-offset" step="0.05" min="0.0">
+                                <span class="unit">m</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Door Hinge & Swing options (only visible for doors) -->
+                        <div id="door-swing-group" class="form-row hidden" style="display: flex; gap: 10px; margin-bottom: 15px;">
+                            <div class="form-group" style="flex: 1;">
+                                <label for="insp-door-hinge">Hinge Side</label>
+                                <select id="insp-door-hinge">
+                                    <option value="left">Left Hung</option>
+                                    <option value="right">Right Hung</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label for="insp-door-swing">Swing Direction</label>
+                                <select id="insp-door-swing">
+                                    <option value="out">Outward</option>
+                                    <option value="in">Inward</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="btn-group">
+                            <button id="btn-delete-op" class="action-btn danger text-btn">
+                                <span class="material-icons">delete</span> Delete
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Room Inspector -->
+                    <div id="inspector-room" class="inspector-content hidden">
+                        <h4>Room Segment</h4>
+                        <div class="form-group">
+                            <label for="insp-room-name">Room Name</label>
+                            <input type="text" id="insp-room-name" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-color); color: var(--text-primary); padding: 8px; border-radius: 6px; font-family: var(--font-sans); outline: none;">
+                        </div>
+                        <div class="form-group" style="margin-top: 15px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px;">
+                                <input type="checkbox" id="insp-room-paint-walls" checked style="width: 16px; height: 16px; accent-color: var(--accent);">
+                                Paint Walls
+                            </label>
+                        </div>
+                        <div class="form-group" style="margin-top: 10px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px;">
+                                <input type="checkbox" id="insp-room-paint-ceiling" checked style="width: 16px; height: 16px; accent-color: var(--accent);">
+                                Paint Ceiling
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Estimation Summary Card -->
+                <div class="sidebar-section summary-card">
+                    <h3>Project Totals</h3>
+                    <div class="totals-grid">
+                        <div class="total-item">
+                            <span class="label">Wall Paint</span>
+                            <span class="val" id="total-wall-paint">0.0 <span class="unit-s">L</span></span>
+                            <span class="sub" id="total-wall-area">0.0 m² (2 coats)</span>
+                        </div>
+                        <div class="total-item">
+                            <span class="label">Ceiling Paint</span>
+                            <span class="val" id="total-ceil-paint">0.0 <span class="unit-s">L</span></span>
+                            <span class="sub" id="total-ceil-area">0.0 m² (2 coats)</span>
+                        </div>
+                        <div class="total-item">
+                            <span class="label">Masking Tape</span>
+                            <span class="val" id="total-tape">0.0 <span class="unit-s">m</span></span>
+                            <span class="sub" id="total-openings-count">0 Openings</span>
+                        </div>
+                        <div class="total-item" style="border-top: 1px solid var(--border-color); padding-top: 10px; margin-top: 5px;">
+                            <span class="label">Window Paint</span>
+                            <span class="val" id="total-window-paint">0.0 <span class="unit-s">L</span></span>
+                            <span class="sub" id="total-window-area">0.0 m² (2 coats)</span>
+                        </div>
+                        <div class="total-item" style="border-top: 1px solid var(--border-color); padding-top: 10px; margin-top: 5px;">
+                            <span class="label">Exterior Paint</span>
+                            <span class="val" id="total-ext-paint">0.0 <span class="unit-s">L</span></span>
+                            <span class="sub" id="total-ext-area">0.0 m² (2 coats)</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <!-- Calculations Drawer Dashboard -->
+        <footer class="calculations-dashboard">
+            <div class="dashboard-header">
+                <h2><span class="material-icons">calculate</span> Detailed Calculations Breakdown (Metric)</h2>
+            </div>
+            <div class="dashboard-body">
+                <div class="table-container">
+                    <table class="metrics-table">
+                        <thead>
+                            <tr>
+                                <th>Room Name</th>
+                                <th>Ceiling Area (m²)</th>
+                                <th>Wall Area (m²)</th>
+                                <th>Ceiling Paint (L)</th>
+                                <th>Wall Paint (L)</th>
+                                <th>Masking Tape (m)</th>
+                                <th>Openings Summary</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rooms-breakdown-body">
+                            <tr>
+                                <td colspan="7" class="empty-table-msg">Draw closed walls to detect rooms and compute paint requirements.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="dashboard-totals-block" class="dashboard-totals-block"></div>
+            </div>
+        </footer>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
